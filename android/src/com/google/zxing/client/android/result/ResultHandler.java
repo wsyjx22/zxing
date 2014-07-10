@@ -30,6 +30,7 @@ import com.google.zxing.client.result.ResultParser;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
@@ -40,6 +41,7 @@ import android.util.Log;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.Locale;
+import java.util.ArrayList;
 
 /**
  * A base class for the Android-specific barcode handlers. These allow the app to polymorphically
@@ -224,26 +226,48 @@ public abstract class ResultHandler {
       }
     }
 
-    // No field for URL, birthday; use notes
-    StringBuilder aggregatedNotes = new StringBuilder();
+    ArrayList<ContentValues> data = new ArrayList<>();
     if (urls != null) {
       for (String url : urls) {
         if (url != null && !url.isEmpty()) {
-          aggregatedNotes.append('\n').append(url);
+          ContentValues row = new ContentValues(2);
+          row.put(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Website.CONTENT_ITEM_TYPE);
+          row.put(ContactsContract.CommonDataKinds.Website.URL, url);
+          data.add(row);
+          break;
         }
       }
     }
-    for (String aNote : new String[] { birthday, note }) {
-      if (aNote != null) {
-        aggregatedNotes.append('\n').append(aNote);
-      }
+
+    if (birthday != null) {
+      ContentValues row = new ContentValues(3);
+      row.put(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE);
+      row.put(ContactsContract.CommonDataKinds.Event.TYPE, ContactsContract.CommonDataKinds.Event.TYPE_BIRTHDAY);
+      row.put(ContactsContract.CommonDataKinds.Event.START_DATE, birthday);
+      data.add(row);
     }
+
     if (nicknames != null) {
       for (String nickname : nicknames) {
         if (nickname != null && !nickname.isEmpty()) {
-          aggregatedNotes.append('\n').append(nickname);
+          ContentValues row = new ContentValues(3);
+          row.put(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Nickname.CONTENT_ITEM_TYPE);
+          row.put(ContactsContract.CommonDataKinds.Nickname.TYPE,
+                  ContactsContract.CommonDataKinds.Nickname.TYPE_DEFAULT);
+          row.put(ContactsContract.CommonDataKinds.Nickname.NAME, nickname);
+          data.add(row);
+          break;
         }
       }
+    }
+
+    if (!data.isEmpty()) {
+      intent.putParcelableArrayListExtra(ContactsContract.Intents.Insert.DATA, data);
+    }
+
+    StringBuilder aggregatedNotes = new StringBuilder();
+    if (note != null) {
+      aggregatedNotes.append('\n').append(note);
     }
     if (geo != null) {
       aggregatedNotes.append('\n').append(geo[0]).append(',').append(geo[1]);
@@ -467,19 +491,18 @@ public abstract class ResultHandler {
     } catch (UnsupportedEncodingException e) {
       // can't happen; UTF-8 is always supported. Continue, I guess, without encoding      
     }
-    String url = text;
+    String url = customProductSearch;
     if (rawResult != null) {
       // Replace %f but only if it doesn't seem to be a hex escape sequence. This remains
       // problematic but avoids the more surprising problem of breaking escapes
-      url = url.replace("%f(?![0-9a-f])", rawResult.getBarcodeFormat().toString());
+      url = url.replaceFirst("%f(?![0-9a-f])", rawResult.getBarcodeFormat().toString());
       if (url.contains("%t")) {
         ParsedResult parsedResultAgain = ResultParser.parseResult(rawResult);
         url = url.replace("%t", parsedResultAgain.getType().toString());
       }
     }
     // Replace %s last as it might contain itself %f or %t
-    url = customProductSearch.replace("%s", url);
-    return url;
+    return url.replace("%s", text);
   }
 
 }

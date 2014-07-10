@@ -42,7 +42,6 @@ public class FinderPatternFinder {
   private static final int CENTER_QUORUM = 2;
   protected static final int MIN_SKIP = 3; // 1 pixel/module times 3 modules/center
   protected static final int MAX_MODULES = 57; // support up to version 10 for mobile clients
-  private static final int INTEGER_MATH_SHIFT = 8;
 
   private final BitMatrix image;
   private final List<FinderPattern> possibleCenters;
@@ -209,14 +208,15 @@ public class FinderPatternFinder {
     if (totalModuleSize < 7) {
       return false;
     }
-    int moduleSize = (totalModuleSize << INTEGER_MATH_SHIFT) / 7;
-    int maxVariance = moduleSize / 2;
+    float moduleSize = totalModuleSize / 7.0f;
+    float maxVariance = moduleSize / 2.0f;
     // Allow less than 50% variance from 1-1-3-1-1 proportions
-    return Math.abs(moduleSize - (stateCount[0] << INTEGER_MATH_SHIFT)) < maxVariance &&
-        Math.abs(moduleSize - (stateCount[1] << INTEGER_MATH_SHIFT)) < maxVariance &&
-        Math.abs(3 * moduleSize - (stateCount[2] << INTEGER_MATH_SHIFT)) < 3 * maxVariance &&
-        Math.abs(moduleSize - (stateCount[3] << INTEGER_MATH_SHIFT)) < maxVariance &&
-        Math.abs(moduleSize - (stateCount[4] << INTEGER_MATH_SHIFT)) < maxVariance;
+    return
+        Math.abs(moduleSize - stateCount[0]) < maxVariance &&
+        Math.abs(moduleSize - stateCount[1]) < maxVariance &&
+        Math.abs(3.0f * moduleSize - stateCount[2]) < 3 * maxVariance &&
+        Math.abs(moduleSize - stateCount[3]) < maxVariance &&
+        Math.abs(moduleSize - stateCount[4]) < maxVariance;
   }
 
   private int[] getCrossCheckStateCount() {
@@ -241,34 +241,34 @@ public class FinderPatternFinder {
    * @return true if proportions are withing expected limits
    */
   private boolean crossCheckDiagonal(int startI, int centerJ, int maxCount, int originalStateCountTotal) {
-    int maxI = image.getHeight();
-    int maxJ = image.getWidth();
     int[] stateCount = getCrossCheckStateCount();
 
     // Start counting up, left from center finding black center mass
     int i = 0;
-    while (startI - i >= 0 && image.get(centerJ - i, startI - i)) {
+    while (startI >= i && centerJ >= i && image.get(centerJ - i, startI - i)) {
       stateCount[2]++;
       i++;
     }
 
-    if ((startI - i < 0) || (centerJ - i < 0)) {
+    if (startI < i || centerJ < i) {
       return false;
     }
 
     // Continue up, left finding white space
-    while ((startI - i >= 0) && (centerJ - i >= 0) && !image.get(centerJ - i, startI - i) && stateCount[1] <= maxCount) {
+    while (startI >= i && centerJ >= i && !image.get(centerJ - i, startI - i) &&
+           stateCount[1] <= maxCount) {
       stateCount[1]++;
       i++;
     }
 
     // If already too many modules in this state or ran off the edge:
-    if ((startI - i < 0) || (centerJ - i < 0) || stateCount[1] > maxCount) {
+    if (startI < i || centerJ < i || stateCount[1] > maxCount) {
       return false;
     }
 
     // Continue up, left finding black border
-    while ((startI - i >= 0) && (centerJ - i >= 0) && image.get(centerJ - i, startI - i) && stateCount[0] <= maxCount) {
+    while (startI >= i && centerJ >= i && image.get(centerJ - i, startI - i) &&
+           stateCount[0] <= maxCount) {
       stateCount[0]++;
       i++;
     }
@@ -276,28 +276,33 @@ public class FinderPatternFinder {
        return false;
     }
 
+    int maxI = image.getHeight();
+    int maxJ = image.getWidth();
+
     // Now also count down, right from center
     i = 1;
-    while ((startI + i < maxI) && (centerJ + i < maxJ) && image.get(centerJ + i, startI + i)) {
+    while (startI + i < maxI && centerJ + i < maxJ && image.get(centerJ + i, startI + i)) {
       stateCount[2]++;
       i++;
     }
 
     // Ran off the edge?
-    if ((startI + i >= maxI) || (centerJ + i >= maxJ)) {
+    if (startI + i >= maxI || centerJ + i >= maxJ) {
        return false;
     }
 
-    while ((startI + i < maxI) && (centerJ + i < maxJ) && !image.get(centerJ + i, startI + i) && stateCount[3] < maxCount) {
+    while (startI + i < maxI && centerJ + i < maxJ && !image.get(centerJ + i, startI + i) &&
+           stateCount[3] < maxCount) {
       stateCount[3]++;
       i++;
     }
 
-    if ((startI + i >= maxI) || (centerJ + i >= maxJ) || stateCount[3] >= maxCount) {
+    if (startI + i >= maxI || centerJ + i >= maxJ || stateCount[3] >= maxCount) {
       return false;
     }
 
-    while ((startI + i < maxI) && (centerJ + i < maxJ) && image.get(centerJ + i, startI + i) && stateCount[4] < maxCount) {
+    while (startI + i < maxI && centerJ + i < maxJ && image.get(centerJ + i, startI + i) &&
+           stateCount[4] < maxCount) {
       stateCount[4]++;
       i++;
     }
@@ -476,6 +481,7 @@ public class FinderPatternFinder {
    * @param stateCount reading state module counts from horizontal scan
    * @param i row where finder pattern may be found
    * @param j end of possible finder pattern in row
+   * @param pureBarcode true if in "pure barcode" mode
    * @return true if a finder pattern candidate was found this time
    */
   protected final boolean handlePossibleCenter(int[] stateCount, int i, int j, boolean pureBarcode) {

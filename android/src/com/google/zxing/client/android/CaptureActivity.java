@@ -218,6 +218,13 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
             cameraManager.setManualFramingRect(width, height);
           }
         }
+
+        if (intent.hasExtra(Intents.Scan.CAMERA_ID)) {
+          int cameraId = intent.getIntExtra(Intents.Scan.CAMERA_ID, -1);
+          if (cameraId >= 0) {
+            cameraManager.setManualCameraId(cameraId);
+          }
+        }
         
         String customPromptMessage = intent.getStringExtra(Intents.Scan.PROMPT_MESSAGE);
         if (customPromptMessage != null) {
@@ -283,6 +290,7 @@ public final class CaptureActivity extends Activity implements SurfaceHolder.Cal
     }
     inactivityTimer.onPause();
     ambientLightManager.stop();
+    beepManager.close();
     cameraManager.closeDriver();
     if (!hasSurface) {
       SurfaceView surfaceView = (SurfaceView) findViewById(R.id.preview_view);

@@ -125,7 +125,7 @@ final class PDF417HighLevelEncoder {
   private static final byte[] MIXED = new byte[128];
   private static final byte[] PUNCTUATION = new byte[128];
 
-  static final Charset DEFAULT_ENCODING = Charset.forName("Cp437");
+  private static final Charset DEFAULT_ENCODING = Charset.forName("ISO-8859-1");
 
   private PDF417HighLevelEncoder() {
   }
@@ -154,6 +154,9 @@ final class PDF417HighLevelEncoder {
    * is used.
    *
    * @param msg the message
+   * @param compaction compaction mode to use
+   * @param encoding character encoding used to encode in default or byte compaction
+   *  or {@code null} for default / not applicable
    * @return the encoded message (the char values range from 0 to 928)
    */
   static String encodeHighLevel(String msg, Compaction compaction, Charset encoding) throws WriterException {
@@ -161,7 +164,9 @@ final class PDF417HighLevelEncoder {
     //the codewords 0..928 are encoded as Unicode characters
     StringBuilder sb = new StringBuilder(msg.length());
 
-    if (!DEFAULT_ENCODING.equals(encoding)) {
+    if (encoding == null) {
+      encoding = DEFAULT_ENCODING;
+    } else if (!DEFAULT_ENCODING.equals(encoding)) {
       CharacterSetECI eci = CharacterSetECI.getCharacterSetECIByName(encoding.name());
       if (eci != null) {
         encodingECI(eci.getValue(), sb);
@@ -547,18 +552,6 @@ final class PDF417HighLevelEncoder {
         ch = msg.charAt(i);
       }
       if (numericCount >= 13) {
-        return idx - startpos;
-      }
-      int textCount = 0;
-      while (textCount < 5 && isText(ch)) {
-        textCount++;
-        int i = idx + textCount;
-        if (i >= len) {
-          break;
-        }
-        ch = msg.charAt(i);
-      }
-      if (textCount >= 5) {
         return idx - startpos;
       }
       ch = msg.charAt(idx);
